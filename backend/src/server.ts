@@ -6,7 +6,7 @@ import { pool } from "./db.js";
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 
-const statuses = ["Open", "In Progress", "Resolved", "Closed"] as const;
+const statuses = ["Open", "In Progress", "Closed"] as const;
 const priorities = ["Low", "Medium", "High"] as const;
 
 app.use(express.json());

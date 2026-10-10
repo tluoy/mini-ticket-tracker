@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     title VARCHAR(120) NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     status VARCHAR(20) NOT NULL DEFAULT 'Open'
-        CHECK (status IN ('Open', 'In Progress', 'Resolved', 'Closed')),
+        CHECK (status IN ('Open', 'In Progress', 'Closed')),
     priority VARCHAR(10) NOT NULL DEFAULT 'Medium'
         CHECK (priority IN ('Low', 'Medium', 'High')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
