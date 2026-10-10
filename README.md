@@ -134,3 +134,7 @@ npm run build
 ```
 
 These commands install dependencies, run the existing backend tests, and verify
+
+## Decisions & Tradeoffs
+
+I chose React and TypeScript for a maintainable frontend with type safety. Express provides a lightweight REST API without unnecessary framework complexity. PostgreSQL was selected for reliable relational storage of ticket data. Docker Compose simplifies local setup by running the frontend, backend, and database together. Pagination and status filtering keep ticket listing manageable as the number of tickets grows. Automated API tests use a mock database, making endpoint behavior testable without a live database. Authentication and authorization were left out to keep the implementation focused on the assignment's core requirements. The UI prioritizes functionality over visual polish because the assignment emphasizes engineering judgment. With more time, I would add authentication, ticket assignment, end-to-end tests, and a continuous integration pipeline.
