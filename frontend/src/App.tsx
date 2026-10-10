@@ -15,6 +15,21 @@ function App() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTickets, setTotalTickets] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<"All" | Ticket["status"]>(
+    "All",
+  );
+
+  const [ticketStats, setTicketStats] = useState({
+    Open: 0,
+    "In Progress": 0,
+    Closed: 0,
+  });
+  const [statsRefreshKey, setStatsRefreshKey] = useState(0);
+  const [ticketsRefreshKey, setTicketsRefreshKey] = useState(0);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -27,20 +42,42 @@ function App() {
 
   useEffect(() => {
     async function loadTickets() {
+      setLoading(true);
+      setError("");
+
       try {
-        const response = await fetch("/api/tickets");
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(limit),
+        });
+
+        if (statusFilter !== "All") {
+          params.set("status", statusFilter);
+        }
+
+        const response = await fetch(`/api/tickets?${params.toString()}`);
 
         if (!response.ok) {
           throw new Error("Unable to load tickets.");
         }
 
-        const result: { data: Ticket[] } = await response.json();
+        const result: {
+          data: Ticket[];
+          pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+          };
+        } = await response.json();
 
-        if (!Array.isArray(result.data)) {
+        if (!Array.isArray(result.data) || !result.pagination) {
           throw new Error("Invalid ticket data received from the server.");
         }
 
         setTickets(result.data);
+        setTotalTickets(result.pagination.total);
+        setTotalPages(Math.max(1, result.pagination.totalPages));
       } catch {
         setError("Could not load tickets. Please try refreshing the page.");
       } finally {
@@ -49,7 +86,42 @@ function App() {
     }
 
     void loadTickets();
-  }, []);
+  }, [page, limit, statusFilter, ticketsRefreshKey]);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const response = await fetch("/api/tickets/stats");
+
+        if (!response.ok) {
+          throw new Error("Unable to load ticket statistics.");
+        }
+
+        const result: { status: string; count: string | number }[] =
+          await response.json();
+
+        const nextStats = {
+          Open: 0,
+          "In Progress": 0,
+          Closed: 0,
+        };
+
+        for (const item of result) {
+          if (item.status in nextStats) {
+            nextStats[item.status as keyof typeof nextStats] = Number(
+              item.count,
+            );
+          }
+        }
+
+        setTicketStats(nextStats);
+      } catch {
+        // Keep the last successfully loaded statistics.
+      }
+    }
+
+    void loadStats();
+  }, [statsRefreshKey]);
 
   async function handleCreateTicket(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,7 +143,11 @@ function App() {
         throw new Error(data.error ?? "Failed to create ticket.");
       }
 
-      setTickets((currentTickets) => [data as Ticket, ...currentTickets]);
+      setStatusFilter("All");
+      setPage(1);
+      setTicketsRefreshKey((current) => current + 1);
+      setStatsRefreshKey((current) => current + 1);
+      setTicketsRefreshKey((current) => current + 1);
       setTitle("");
       setDescription("");
       setPriority("Medium");
@@ -107,11 +183,17 @@ function App() {
         throw new Error(data.error ?? "Failed to update ticket.");
       }
 
-      setTickets((currentTickets) =>
-        currentTickets.map((ticket) =>
-          ticket.id === ticketId ? (data as Ticket) : ticket,
-        ),
-      );
+      setStatsRefreshKey((current) => current + 1);
+
+      if (statusFilter !== "All" && (data as Ticket).status !== statusFilter) {
+        setPage(1);
+      } else {
+        setTickets((currentTickets) =>
+          currentTickets.map((ticket) =>
+            ticket.id === ticketId ? (data as Ticket) : ticket,
+          ),
+        );
+      }
     } catch (err) {
       setUpdateError(
         err instanceof Error ? err.message : "Failed to update ticket.",
@@ -121,13 +203,9 @@ function App() {
     }
   }
 
-  const openCount = tickets.filter((ticket) => ticket.status === "Open").length;
-  const inProgressCount = tickets.filter(
-    (ticket) => ticket.status === "In Progress",
-  ).length;
-  const closedCount = tickets.filter(
-    (ticket) => ticket.status === "Closed",
-  ).length;
+  const openCount = ticketStats.Open;
+  const inProgressCount = ticketStats["In Progress"];
+  const closedCount = ticketStats.Closed;
 
   return (
     <div className="app-shell">
@@ -270,7 +348,7 @@ function App() {
         <section className="stats-grid" aria-label="Ticket summary">
           <article className="stat-card">
             <span className="stat-label">Total tickets</span>
-            <strong className="stat-value">{tickets.length}</strong>
+            <strong className="stat-value">{totalTickets}</strong>
             <span className="muted">Across all statuses</span>
           </article>
 
@@ -309,6 +387,27 @@ function App() {
             >
               + New ticket
             </button>
+          </div>
+
+          <div className="ticket-list-controls">
+            <label className="ticket-filter">
+              <span>Filter by status</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => {
+                  setStatusFilter(
+                    event.target.value as "All" | Ticket["status"],
+                  );
+                  setPage(1);
+                }}
+                disabled={loading}
+              >
+                <option value="All">All statuses</option>
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </label>
           </div>
 
           {updateError && (
@@ -398,6 +497,38 @@ function App() {
                   </div>
                 </article>
               ))}
+            </div>
+          )}
+
+          {!loading && !error && (
+            <div className="pagination-controls">
+              <span className="muted">
+                Showing {tickets.length} of {totalTickets} tickets
+              </span>
+
+              <div className="pagination-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setPage((currentPage) => currentPage - 1)}
+                  disabled={page <= 1 || loading}
+                >
+                  Previous
+                </button>
+
+                <span className="pagination-page">
+                  Page {page} of {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setPage((currentPage) => currentPage + 1)}
+                  disabled={page >= totalPages || loading}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </section>
