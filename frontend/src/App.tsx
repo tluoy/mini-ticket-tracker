@@ -22,6 +22,9 @@ function App() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
+  const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
+  const [updateError, setUpdateError] = useState("");
+
   useEffect(() => {
     async function loadTickets() {
       try {
@@ -31,8 +34,13 @@ function App() {
           throw new Error("Unable to load tickets.");
         }
 
-        const data: Ticket[] = await response.json();
-        setTickets(data);
+        const result: { data: Ticket[] } = await response.json();
+
+        if (!Array.isArray(result.data)) {
+          throw new Error("Invalid ticket data received from the server.");
+        }
+
+        setTickets(result.data);
       } catch {
         setError("Could not load tickets. Please try refreshing the page.");
       } finally {
@@ -74,6 +82,42 @@ function App() {
       );
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleTicketUpdate(
+    ticketId: string,
+    updates: Partial<Pick<Ticket, "status" | "priority">>,
+  ) {
+    setUpdatingTicketId(ticketId);
+    setUpdateError("");
+
+    try {
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to update ticket.");
+      }
+
+      setTickets((currentTickets) =>
+        currentTickets.map((ticket) =>
+          ticket.id === ticketId ? (data as Ticket) : ticket,
+        ),
+      );
+    } catch (err) {
+      setUpdateError(
+        err instanceof Error ? err.message : "Failed to update ticket.",
+      );
+    } finally {
+      setUpdatingTicketId(null);
     }
   }
 
@@ -128,82 +172,90 @@ function App() {
         </header>
 
         {showCreateForm && (
-  <div className="modal-backdrop">
-    <section
-      className="ticket-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="create-ticket-title"
-    >
-      <div className="modal-header">
-        <h2 id="create-ticket-title">Create a ticket</h2>
-        <button
-          className="modal-close"
-          type="button"
-          aria-label="Close form"
-          onClick={() => setShowCreateForm(false)}
-        >
-          ×
-        </button>
-      </div>
+          <div className="modal-backdrop">
+            <section
+              className="ticket-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-ticket-title"
+            >
+              <div className="modal-header">
+                <h2 id="create-ticket-title">Create a ticket</h2>
+                <button
+                  className="modal-close"
+                  type="button"
+                  aria-label="Close form"
+                  onClick={() => setShowCreateForm(false)}
+                >
+                  ×
+                </button>
+              </div>
 
-      <form onSubmit={handleCreateTicket}>
-        <label htmlFor="ticket-title">Title</label>
-        <input
-          id="ticket-title"
-          name="title"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          maxLength={120}
-          required
-          autoFocus
-          placeholder="Briefly describe the issue"
-        />
+              <form onSubmit={handleCreateTicket}>
+                <label htmlFor="ticket-title">Title</label>
+                <input
+                  id="ticket-title"
+                  name="title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  maxLength={120}
+                  required
+                  autoFocus
+                  placeholder="Briefly describe the issue"
+                />
 
-        <label htmlFor="ticket-description">Description</label>
-        <textarea
-          id="ticket-description"
-          name="description"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          maxLength={5000}
-          rows={4}
-          placeholder="Provide more details (optional)"
-        />
+                <label htmlFor="ticket-description">Description</label>
+                <textarea
+                  id="ticket-description"
+                  name="description"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  maxLength={5000}
+                  rows={4}
+                  placeholder="Provide more details (optional)"
+                />
 
-        <label htmlFor="ticket-priority">Priority</label>
-        <select
-          id="ticket-priority"
-          name="priority"
-          value={priority}
-          onChange={(event) =>
-            setPriority(event.target.value as 'Low' | 'Medium' | 'High')
-          }
-        >
-          <option value="Low">Low</option>
-          <option value="Medium">Medium</option>
-          <option value="High">High</option>
-        </select>
+                <label htmlFor="ticket-priority">Priority</label>
+                <select
+                  id="ticket-priority"
+                  name="priority"
+                  value={priority}
+                  onChange={(event) =>
+                    setPriority(event.target.value as "Low" | "Medium" | "High")
+                  }
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
 
-        {createError && <p className="form-error" role="alert">{createError}</p>}
+                {createError && (
+                  <p className="form-error" role="alert">
+                    {createError}
+                  </p>
+                )}
 
-        <div className="modal-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => setShowCreateForm(false)}
-            disabled={creating}
-          >
-            Cancel
-          </button>
-          <button className="primary-button" type="submit" disabled={creating}>
-            {creating ? 'Creating…' : 'Create ticket'}
-          </button>
-        </div>
-      </form>
-    </section>
-  </div>
-)}
+                <div className="modal-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => setShowCreateForm(false)}
+                    disabled={creating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="primary-button"
+                    type="submit"
+                    disabled={creating}
+                  >
+                    {creating ? "Creating…" : "Create ticket"}
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
+        )}
 
         <section className="welcome-section">
           <div>
@@ -259,6 +311,12 @@ function App() {
             </button>
           </div>
 
+          {updateError && (
+            <p className="form-error" role="alert">
+              {updateError}
+            </p>
+          )}
+
           {loading ? (
             <p className="empty-state">Loading tickets...</p>
           ) : error ? (
@@ -294,11 +352,49 @@ function App() {
                     >
                       {ticket.status}
                     </span>
+
                     <span
                       className={`ticket-priority priority-${ticket.priority.toLowerCase()}`}
                     >
                       {ticket.priority}
                     </span>
+
+                    <label className="status-control">
+                      <span className="muted">Change status</span>
+                      <select
+                        aria-label={`Change status for ticket ${ticket.id}`}
+                        value={ticket.status}
+                        disabled={updatingTicketId === ticket.id}
+                        onChange={(event) =>
+                          void handleTicketUpdate(ticket.id, {
+                            status: event.target.value as Ticket["status"],
+                          })
+                        }
+                      >
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Closed">Closed</option>
+                      </select>
+
+                      <select
+                        value={ticket.priority}
+                        disabled={updatingTicketId === ticket.id}
+                        onChange={(event) =>
+                          void handleTicketUpdate(ticket.id, {
+                            priority: event.target.value as Ticket["priority"],
+                          })
+                        }
+                        aria-label={`Priority for ${ticket.title}`}
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+
+                      {updatingTicketId === ticket.id && (
+                        <span className="muted">Saving…</span>
+                      )}
+                    </label>
                   </div>
                 </article>
               ))}

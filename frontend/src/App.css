@@ -1,4 +1,3 @@
-
 .app-shell {
   min-height: 100vh;
 }
@@ -492,4 +491,26 @@
 .ticket-modal button:disabled {
   cursor: not-allowed;
   opacity: 0.65;
+}
+
+.status-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.status-control select {
+  max-width: 180px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  background: var(--card-background, #ffffff);
+  color: inherit;
+  font: inherit;
+}
+
+.status-control select:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
